@@ -1,6 +1,6 @@
 # Start from your own trusted, pre-built base image.
 # This base image already contains Python and all necessary system dependencies.
-FROM qxuan512512/jenkins-build-base-image:latest
+FROM qxuan512512/jenkins-build-base-image:python3.13.5-slim-bookworm
 
 # Create application directory
 WORKDIR /app
