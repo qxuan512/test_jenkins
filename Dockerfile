@@ -1,34 +1,49 @@
-# Ultra-minimal Dockerfile for smallest possible image size - Fixed for ARM64
-FROM --platform=$BUILDPLATFORM python:3.13.5-alpine
+# Ultra-minimal Dockerfile for smallest possible image size
+# Using Python 3.12 for better stability and pip compatibility
+FROM --platform=$BUILDPLATFORM python:3.12.8-slim-bookworm
 
 # Build arguments
 ARG TARGETARCH
 ARG TARGETPLATFORM
 
-# Install packages with retry and random delay for parallel builds
-RUN DELAY=$((RANDOM % 5 + 1)) && echo "Starting with ${DELAY}s delay for parallel build safety..." && sleep $DELAY \
-    && for i in 1 2 3 4 5; do \
-        apk add --no-cache curl bash && break || \
-        (echo "APK install attempt $i failed, retrying in $((i * 2)) seconds..." && sleep $((i * 2))); \
-    done \
-    && rm -rf /var/cache/apk/* /tmp/* /var/tmp/*
+# Install packages using apt with improved lock handling
+RUN set -ex && \
+    # Clean any existing locks and wait
+    rm -f /var/lib/apt/lists/lock /var/lib/dpkg/lock /var/lib/dpkg/lock-frontend && \
+    sleep 2 && \
+    # Retry mechanism for apt operations
+    for i in 1 2 3; do \
+        apt-get update && break || { echo "apt-get update failed, attempt $i/3"; sleep 5; } \
+    done && \
+    # Install required packages with retry
+    for i in 1 2 3; do \
+        apt-get install -y --no-install-recommends curl && break || { echo "apt-get install failed, attempt $i/3"; sleep 5; } \
+    done && \
+    # Clean up
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # Set working directory
 WORKDIR /app
 
-# Copy and install Python dependencies with parallel build safety
+# Update pip and essential tools for better compatibility
+RUN python -m pip install --upgrade pip setuptools wheel
+
+# Copy and install Python dependencies with enhanced error handling
 COPY requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt \
-    && pip cache purge \
+RUN python -m pip install --no-cache-dir --no-deps -r requirements.txt || \
+    (echo "First attempt failed, trying with individual packages..." && \
+     python -m pip install --no-cache-dir pandas numpy requests websocket-client colorama python-dotenv paho-mqtt pyserial python-dateutil jsonschema) \
+    && python -m pip cache purge \
     && rm -rf /root/.cache /root/.local /tmp/pip-*
 
 # Copy only essential application files
 COPY main.py config.json ./
 COPY app.sh ./
+COPY driver.py ./
 
-# Fix app.sh to use /bin/sh instead of /bin/bash and set permissions
-RUN sed -i '1s|#!/bin/bash|#!/bin/sh|' app.sh \
-    && chmod +x app.sh \
+# Set permissions and create minimal directories
+RUN chmod +x app.sh \
     && mkdir -p /var/log/iot-driver
 
 # Minimal platform logging
