@@ -27,15 +27,16 @@ RUN set -ex && \
 WORKDIR /app
 
 # Update pip and essential tools for better compatibility
-RUN python -m pip install --upgrade pip setuptools wheel
+RUN python -m pip install --no-cache-dir --upgrade pip setuptools wheel
 
 # Copy and install Python dependencies with enhanced error handling
 COPY requirements.txt ./
-RUN python -m pip install --no-cache-dir --no-deps -r requirements.txt || \
+RUN set -ex && \
+    python -m pip install --no-cache-dir -r requirements.txt || \
     (echo "First attempt failed, trying with individual packages..." && \
-     python -m pip install --no-cache-dir pandas numpy requests websocket-client colorama python-dotenv paho-mqtt pyserial python-dateutil jsonschema) \
-    && python -m pip cache purge \
-    && rm -rf /root/.cache /root/.local /tmp/pip-*
+     python -m pip install --no-cache-dir pandas numpy requests websocket-client colorama python-dotenv paho-mqtt pyserial python-dateutil jsonschema) && \
+    python -m pip cache purge && \
+    rm -rf /root/.cache /root/.local /tmp/pip-*
 
 # Copy only essential application files
 COPY main.py config.json ./
