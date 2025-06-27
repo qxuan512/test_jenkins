@@ -1,7 +1,14 @@
 # Start from your own trusted, pre-built base image.
 # This base image already contains Python and all necessary system dependencies.
-FROM qxuan512512/jenkins-build-base-image:python3.13.5-slim-bookworm
+FROM python:3.13.5-slim-bookworm
 
+RUN apk add --no-cache busybox-suid && \
+    apk add --no-cache \
+    curl \
+    wget \
+    jq \
+    file \
+    bash \
 # Create application directory
 WORKDIR /app
 
