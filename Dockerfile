@@ -1,7 +1,8 @@
 # Multi-architecture Dockerfile for kaniko builds (amd64/arm64) - Kaniko Compatible
-FROM alpine:latest
+FROM python:3.12-alpine
 
-# Install all packages in one layer but with explicit package versions for better reliability
+# The base image already contains Python and pip.
+# Install other necessary tools.
 RUN apk add --no-cache \
     busybox-suid \
     curl \
@@ -9,8 +10,6 @@ RUN apk add --no-cache \
     jq \
     file \
     bash \
-    python3 \
-    py3-pip \
     && rm -rf /var/cache/apk/* /tmp/*
 
 # Create application directory
