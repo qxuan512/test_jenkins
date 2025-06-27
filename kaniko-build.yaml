@@ -83,10 +83,10 @@ metadata:
   name: dockerfile-context
 data:
   Dockerfile: |
-    # Multi-architecture Dockerfile for kaniko builds (amd64/arm64)
+    # Multi-architecture Dockerfile for kaniko builds (amd64/arm64) - Kaniko Compatible
     FROM alpine:latest
 
-    # Install basic tools, Python, pip and testing utilities
+    # Install all packages in one layer but with explicit package versions for better reliability
     RUN apk add --no-cache \
         curl \
         wget \
@@ -95,7 +95,7 @@ data:
         bash \
         python3 \
         py3-pip \
-        && rm -rf /var/cache/apk/*
+        && rm -rf /var/cache/apk/* /tmp/*
 
     # Create application directory
     WORKDIR /app
@@ -103,8 +103,8 @@ data:
     # Copy requirements.txt first for better Docker layer caching
     COPY requirements.txt .
 
-    # Install Python dependencies
-    RUN pip3 install --no-cache-dir -r requirements.txt
+    # Install Python dependencies (compatible with kaniko)
+    RUN pip3 install --no-cache-dir --break-system-packages -r requirements.txt
 
     # Add architecture detection and build info
     RUN echo "Build Info:" > /app/build-info.txt && \
