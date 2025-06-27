@@ -1,4 +1,4 @@
-# Ultra-minimal Dockerfile for smallest possible image size
+# Ultra-minimal Dockerfile for smallest possible image size - Fixed for ARM64
 FROM --platform=$BUILDPLATFORM python:3.13.5-alpine
 
 # Build arguments
@@ -8,7 +8,7 @@ ARG TARGETPLATFORM
 # Install packages with retry and random delay for parallel builds
 RUN DELAY=$((RANDOM % 5 + 1)) && echo "Starting with ${DELAY}s delay for parallel build safety..." && sleep $DELAY \
     && for i in 1 2 3 4 5; do \
-        apk add --no-cache curl && break || \
+        apk add --no-cache curl bash && break || \
         (echo "APK install attempt $i failed, retrying in $((i * 2)) seconds..." && sleep $((i * 2))); \
     done \
     && rm -rf /var/cache/apk/* /tmp/* /var/tmp/*
@@ -26,8 +26,9 @@ RUN pip install --no-cache-dir -r requirements.txt \
 COPY main.py config.json ./
 COPY app.sh ./
 
-# Set permissions and create minimal directories
-RUN chmod +x app.sh \
+# Fix app.sh to use /bin/sh instead of /bin/bash and set permissions
+RUN sed -i '1s|#!/bin/bash|#!/bin/sh|' app.sh \
+    && chmod +x app.sh \
     && mkdir -p /var/log/iot-driver
 
 # Minimal platform logging
