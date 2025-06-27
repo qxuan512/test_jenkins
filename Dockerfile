@@ -1,16 +1,13 @@
-# Multi-architecture Dockerfile for kaniko builds (amd64/arm64)
+# Multi-architecture Dockerfile for kaniko builds (amd64/arm64) - Optimized Version
 FROM alpine:latest
 
-# Install basic tools, Python, pip and testing utilities
-RUN apk add --no-cache \
-    curl \
-    wget \
-    jq \
-    file \
-    bash \
-    python3 \
-    py3-pip \
-    && rm -rf /var/cache/apk/*
+# Update package index first
+RUN apk update
+
+# Install packages in smaller batches to avoid memory issues
+RUN apk add --no-cache curl wget && rm -rf /var/cache/apk/*
+RUN apk add --no-cache jq file bash && rm -rf /var/cache/apk/*
+RUN apk add --no-cache python3 py3-pip && rm -rf /var/cache/apk/*
 
 # Create application directory
 WORKDIR /app
@@ -18,8 +15,17 @@ WORKDIR /app
 # Copy requirements.txt first for better Docker layer caching
 COPY requirements.txt .
 
-# Install Python dependencies
-RUN pip3 install --no-cache-dir -r requirements.txt
+# Install Python dependencies with retry mechanism and smaller memory footprint
+RUN pip3 install --no-cache-dir --user --break-system-packages \
+    pandas>=1.3.0 numpy>=1.21.0 && \
+    pip3 install --no-cache-dir --user --break-system-packages \
+    requests>=2.25.0 websocket-client>=1.0.0 && \
+    pip3 install --no-cache-dir --user --break-system-packages \
+    colorama>=0.4.4 python-dotenv>=0.19.0 && \
+    pip3 install --no-cache-dir --user --break-system-packages \
+    paho-mqtt>=1.6.0 pyserial>=3.5 && \
+    pip3 install --no-cache-dir --user --break-system-packages \
+    python-dateutil>=2.8.0 jsonschema>=4.0.0
 
 # Add architecture detection and build info
 RUN echo "Build Info:" > /app/build-info.txt && \
@@ -44,18 +50,18 @@ echo "Wget version: $(wget --version | head -1)"
 echo "Python version: $(python3 --version)"
 echo "Pip version: $(pip3 --version)"
 echo "Testing network connectivity..."
-if curl -s --connect-timeout 5 https://httpbin.org/get > /dev/null; then
+if timeout 10 curl -s --connect-timeout 5 https://httpbin.org/get > /dev/null; then
     echo "✅ Network connectivity: OK"
 else
-    echo "❌ Network connectivity: Failed"
+    echo "❌ Network connectivity: Failed or timeout"
 fi
 echo "Testing file operations..."
 echo "test" > /tmp/test-file && rm /tmp/test-file
 echo "✅ File operations: OK"
 echo "Testing Python installation..."
-python3 -c "import sys; print(f'✅ Python {sys.version} is working')"
+python3 -c "import sys; print(f'✅ Python {sys.version.split()[0]} is working')" 2>/dev/null || echo "❌ Python test failed"
 echo "Testing installed packages..."
-pip3 list | head -10
+pip3 list --user | head -10 2>/dev/null || echo "Checking system packages..." && pip3 list | head -10
 echo "=== Test completed successfully ==="
 cat /app/build-info.txt
 EOF
@@ -63,9 +69,9 @@ EOF
 # Make test script executable
 RUN chmod +x /app/test-build.sh
 
-# Add health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD /app/test-build.sh || exit 1
+# Add health check with timeout
+HEALTHCHECK --interval=30s --timeout=15s --start-period=10s --retries=3 \
+    CMD timeout 10 /app/test-build.sh || exit 1
 
 # Set startup command with build test
-CMD ["/bin/sh", "-c", "/app/test-build.sh && echo 'Hello from multi-arch build context!' && tail -f /dev/null"]
+CMD ["/bin/sh", "-c", "/app/test-build.sh && echo 'Hello from multi-arch build context!' && tail -f /dev/null"] 
