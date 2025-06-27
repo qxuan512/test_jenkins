@@ -92,7 +92,6 @@ data:
         wget \
         jq \
         file \
-        uname \
         bash \
         python3 \
         py3-pip \

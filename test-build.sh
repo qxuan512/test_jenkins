@@ -5,8 +5,10 @@ set -e
 
 IMAGE_NAME=${IMAGE_NAME:-"test-app"}
 TAG=${TAG:-"latest"}
+DOCKERFILE=${DOCKERFILE:-"Dockerfile"}
 
 echo "🔧 Testing Docker build for multi-architecture support..."
+echo "📁 Using Dockerfile: $DOCKERFILE"
 
 # Function to test build for specific platform
 test_build() {
@@ -14,7 +16,7 @@ test_build() {
     local tag_suffix=$2
     
     echo "📦 Building for platform: $platform"
-    docker build --platform $platform -t ${IMAGE_NAME}:${TAG}-${tag_suffix} .
+    docker build --platform $platform -f $DOCKERFILE -t ${IMAGE_NAME}:${TAG}-${tag_suffix} .
     
     echo "🧪 Testing built image for $platform..."
     docker run --rm --platform $platform ${IMAGE_NAME}:${TAG}-${tag_suffix} /app/test-build.sh
@@ -36,7 +38,7 @@ if docker buildx version > /dev/null 2>&1; then
     
     # Create multi-arch manifest
     echo "📋 Creating multi-architecture manifest..."
-    docker buildx build --platform linux/amd64,linux/arm64 -t ${IMAGE_NAME}:${TAG} . --push=false
+    docker buildx build --platform linux/amd64,linux/arm64 -f $DOCKERFILE -t ${IMAGE_NAME}:${TAG} . --push=false
     echo "✅ Multi-architecture manifest created successfully"
 else
     echo "⚠️  Docker Buildx not available, skipping arm64 build"

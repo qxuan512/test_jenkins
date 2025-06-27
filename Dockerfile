@@ -7,7 +7,6 @@ RUN apk add --no-cache \
     wget \
     jq \
     file \
-    uname \
     bash \
     python3 \
     py3-pip \
