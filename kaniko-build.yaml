@@ -1,0 +1,181 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kaniko-build-script
+data:
+  build-multi-arch.sh: |
+    #!/bin/bash
+    set -e
+    
+    IMAGE_NAME=${IMAGE_NAME:-"your-registry/test-app"}
+    TAG=${TAG:-"latest"}
+    
+    echo "Building multi-architecture image: ${IMAGE_NAME}:${TAG}"
+    
+    # Build for amd64
+    echo "Building for amd64..."
+    /kaniko/executor \
+      --dockerfile=/workspace/Dockerfile \
+      --context=/workspace \
+      --destination=${IMAGE_NAME}:${TAG}-amd64 \
+      --cache=true \
+      --compressed-caching=false
+    
+    echo "amd64 build completed successfully!"
+    
+    # Build for arm64
+    echo "Building for arm64..."
+    /kaniko/executor \
+      --dockerfile=/workspace/Dockerfile \
+      --context=/workspace \
+      --destination=${IMAGE_NAME}:${TAG}-arm64 \
+      --cache=true \
+      --compressed-caching=false \
+      --custom-platform=linux/arm64
+    
+    echo "arm64 build completed successfully!"
+    echo "Multi-architecture builds completed!"
+
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kaniko-multi-arch-build
+spec:
+  template:
+    spec:
+      containers:
+      - name: kaniko
+        image: gcr.io/kaniko-project/executor:latest
+        command: ["/bin/sh"]
+        args: ["/scripts/build-multi-arch.sh"]
+        env:
+        - name: IMAGE_NAME
+          value: "your-registry/test-app"  # Change this to your registry
+        - name: TAG
+          value: "v1.0.0"
+        volumeMounts:
+        - name: build-context
+          mountPath: /workspace
+        - name: build-script
+          mountPath: /scripts
+        - name: docker-config
+          mountPath: /kaniko/.docker
+          readOnly: true
+      volumes:
+      - name: build-context
+        configMap:
+          name: dockerfile-context
+      - name: build-script
+        configMap:
+          name: kaniko-build-script
+          defaultMode: 0755
+      - name: docker-config
+        secret:
+          secretName: registry-credentials  # Create this secret with your registry credentials
+      restartPolicy: Never
+  backoffLimit: 3
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dockerfile-context
+data:
+  Dockerfile: |
+    # Multi-architecture Dockerfile for kaniko builds (amd64/arm64)
+    FROM alpine:latest
+
+    # Install basic tools, Python, pip and testing utilities
+    RUN apk add --no-cache \
+        curl \
+        wget \
+        jq \
+        file \
+        uname \
+        bash \
+        python3 \
+        py3-pip \
+        && rm -rf /var/cache/apk/*
+
+    # Create application directory
+    WORKDIR /app
+
+    # Copy requirements.txt first for better Docker layer caching
+    COPY requirements.txt .
+
+    # Install Python dependencies
+    RUN pip3 install --no-cache-dir -r requirements.txt
+
+    # Add architecture detection and build info
+    RUN echo "Build Info:" > /app/build-info.txt && \
+        echo "Architecture: $(uname -m)" >> /app/build-info.txt && \
+        echo "Platform: $(uname -s)" >> /app/build-info.txt && \
+        echo "Build Date: $(date)" >> /app/build-info.txt && \
+        echo "Alpine Version: $(cat /etc/alpine-release)" >> /app/build-info.txt && \
+        echo "Python Version: $(python3 --version)" >> /app/build-info.txt && \
+        echo "Pip Version: $(pip3 --version)" >> /app/build-info.txt
+
+    # Copy application files
+    COPY . .
+
+    # Add a simple test script
+    RUN cat > /app/test-build.sh << 'EOF'
+    #!/bin/bash
+    echo "=== Build Test Results ==="
+    echo "Current architecture: $(uname -m)"
+    echo "Platform: $(uname -s)"
+    echo "Curl version: $(curl --version | head -1)"
+    echo "Wget version: $(wget --version | head -1)"
+    echo "Python version: $(python3 --version)"
+    echo "Pip version: $(pip3 --version)"
+    echo "Testing network connectivity..."
+    if curl -s --connect-timeout 5 https://httpbin.org/get > /dev/null; then
+        echo "✅ Network connectivity: OK"
+    else
+        echo "❌ Network connectivity: Failed"
+    fi
+    echo "Testing file operations..."
+    echo "test" > /tmp/test-file && rm /tmp/test-file
+    echo "✅ File operations: OK"
+    echo "Testing Python installation..."
+    python3 -c "import sys; print(f'✅ Python {sys.version} is working')"
+    echo "Testing installed packages..."
+    pip3 list | head -10
+    echo "=== Test completed successfully ==="
+    cat /app/build-info.txt
+    EOF
+
+    # Make test script executable
+    RUN chmod +x /app/test-build.sh
+
+    # Add health check
+    HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+        CMD /app/test-build.sh || exit 1
+
+    # Set startup command with build test
+    CMD ["/bin/sh", "-c", "/app/test-build.sh && echo 'Hello from multi-arch build context!' && tail -f /dev/null"]
+  requirements.txt: |
+    # IoT Driver Python Dependencies
+
+    # Data processing
+    pandas>=1.3.0
+    numpy>=1.21.0
+
+    # Network communication
+    requests>=2.25.0
+    websocket-client>=1.0.0
+
+    # Logging and configuration
+    colorama>=0.4.4
+    python-dotenv>=0.19.0
+
+    # IoT related libraries
+    paho-mqtt>=1.6.0
+    pyserial>=3.5
+
+    # Time handling
+    python-dateutil>=2.8.0
+
+    # JSON processing
+    jsonschema>=4.0.0 
