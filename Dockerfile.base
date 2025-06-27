@@ -1,0 +1,15 @@
+# Dockerfile.base
+# Start from the official Python slim image based on Debian (Bookworm).
+FROM python:3.13.5-slim-bookworm
+
+# Install all common system tools required for building and running the project.
+# Using apt-get for Debian-based images.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    busybox \
+    curl \
+    wget \
+    jq \
+    file \
+    bash \
+    # Clean up the apt cache after installation to keep the image lean.
+    && rm -rf /var/lib/apt/lists/* /tmp/* 

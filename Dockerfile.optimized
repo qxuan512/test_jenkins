@@ -2,12 +2,6 @@
 FROM alpine:latest
 
 # Update package index first
-RUN apk update
-
-# Install packages in smaller batches to avoid memory issues
-RUN apk add --no-cache curl wget && rm -rf /var/cache/apk/*
-RUN apk add --no-cache jq file bash && rm -rf /var/cache/apk/*
-RUN apk add --no-cache python3 py3-pip && rm -rf /var/cache/apk/*
 
 # Create application directory
 WORKDIR /app
