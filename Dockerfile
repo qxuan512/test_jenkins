@@ -1,13 +1,18 @@
-# Multi-architecture Dockerfile for kaniko builds (amd64/arm64) - Optimized Version
+# Multi-architecture Dockerfile for kaniko builds (amd64/arm64) - Kaniko Compatible
 FROM alpine:latest
 
-# Update package index first
-RUN apk update
+# Install all packages in one layer but with explicit package versions for better reliability
 
-# Install packages in smaller batches to avoid memory issues
-RUN apk add --no-cache curl wget && rm -rf /var/cache/apk/*
-RUN apk add --no-cache jq file bash && rm -rf /var/cache/apk/*
-RUN apk add --no-cache python3 py3-pip && rm -rf /var/cache/apk/*
+RUN apk add --no-cache busybox-suid && \
+    apk add --no-cache \
+    curl \
+    wget \
+    jq \
+    file \
+    bash \
+    python3 \
+    py3-pip \
+    && rm -rf /var/cache/apk/* /tmp/*
 
 # Create application directory
 WORKDIR /app
@@ -15,17 +20,8 @@ WORKDIR /app
 # Copy requirements.txt first for better Docker layer caching
 COPY requirements.txt .
 
-# Install Python dependencies with retry mechanism and smaller memory footprint
-RUN pip3 install --no-cache-dir --user --break-system-packages \
-    pandas>=1.3.0 numpy>=1.21.0 && \
-    pip3 install --no-cache-dir --user --break-system-packages \
-    requests>=2.25.0 websocket-client>=1.0.0 && \
-    pip3 install --no-cache-dir --user --break-system-packages \
-    colorama>=0.4.4 python-dotenv>=0.19.0 && \
-    pip3 install --no-cache-dir --user --break-system-packages \
-    paho-mqtt>=1.6.0 pyserial>=3.5 && \
-    pip3 install --no-cache-dir --user --break-system-packages \
-    python-dateutil>=2.8.0 jsonschema>=4.0.0
+# Install Python dependencies (compatible with kaniko)
+RUN pip3 install --no-cache-dir --break-system-packages -r requirements.txt
 
 # Add architecture detection and build info
 RUN echo "Build Info:" > /app/build-info.txt && \
@@ -61,7 +57,7 @@ echo "✅ File operations: OK"
 echo "Testing Python installation..."
 python3 -c "import sys; print(f'✅ Python {sys.version.split()[0]} is working')" 2>/dev/null || echo "❌ Python test failed"
 echo "Testing installed packages..."
-pip3 list --user | head -10 2>/dev/null || echo "Checking system packages..." && pip3 list | head -10
+pip3 list | head -10
 echo "=== Test completed successfully ==="
 cat /app/build-info.txt
 EOF
