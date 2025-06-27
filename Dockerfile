@@ -2,9 +2,8 @@
 FROM alpine:latest
 
 # Install all packages in one layer but with explicit package versions for better reliability
-
-RUN apk add --no-cache busybox-suid && \
-    apk add --no-cache \
+RUN apk add --no-cache \
+    busybox-suid \
     curl \
     wget \
     jq \
