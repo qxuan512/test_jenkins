@@ -1,16 +1,6 @@
-# Multi-architecture Dockerfile for kaniko builds (amd64/arm64) - Kaniko Compatible
-FROM python:3.12-alpine
-
-# The base image already contains Python and pip.
-# Install other necessary tools.
-RUN apk add --no-cache \
-    busybox-suid \
-    curl \
-    wget \
-    jq \
-    file \
-    bash \
-    && rm -rf /var/cache/apk/* /tmp/*
+# Start from your own trusted, pre-built base image.
+# This base image already contains Python and all necessary system dependencies.
+FROM qxuan512512/jenkins-build-base-image:latest
 
 # Create application directory
 WORKDIR /app
